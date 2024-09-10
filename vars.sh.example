@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Set variables
+tagger_storage_account=myazuretaggerstorage
+container_name="function-releases"
+azure_tagger_function_name="my-azure-tagger-function"
+resource_group="rg-azure-tagger"
+
+export TF_VAR_azure_subscription_id="REPLACE_ME_WITH_SUBSCRIPTION_ID"
+export TF_VAR_tagger_storage_account=${tagger_storage_account}
+export TF_VAR_azure_tagger_function_name=${azure_tagger_function_name}

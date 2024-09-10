@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "aws-scripting-guy.cform",
+    "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
+    "golang.go",
+    "yzhang.markdown-all-in-one"
+  ]
+}

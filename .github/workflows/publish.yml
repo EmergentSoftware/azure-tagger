@@ -1,0 +1,76 @@
+name: Publish
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  release:
+    name: Publish Release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout Tag
+        uses: actions/checkout@v1
+      - name: Build Assets
+        id: build
+        run: |
+          version="$( echo "${{ github.ref }}" | sed 's#refs/tags/v##' )"
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+          mkdir tmp
+
+          if [[ -e "docs/releases/v${version}.md" ]]; then
+            sed '1{/^---$/!q;};1,/^---$/d' "docs/releases/v${version}.md" > tmp/release-body
+            echo "" >> tmp/release-body
+          fi
+
+          ./scripts/build.dockerized.sh "$version"
+
+          # cd tmp/build
+
+          (
+            echo "**Assets (sha256)**"
+            echo ""
+          ) >> tmp/release-body
+
+          for os in darwin linux windows; do
+            filename=$( echo *-$os-*.zip )
+            echo "filename_$os=$filename" >> $GITHUB_OUTPUT
+
+            shasum -a 256 $filename | tee /dev/stderr | sed 's/^/    /' >> tmp/release-body
+          done
+
+          release_body=$(cat tmp/release-body)
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "$release_body" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: v${{ steps.build.outputs.version }}
+          body: ${{ env.RELEASE_BODY }}
+          draft: false
+          prerelease: false
+      - name: Upload Asset (darwin)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./${{ steps.build.outputs.filename_darwin }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Asset (linux)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./${{ steps.build.outputs.filename_linux }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Asset (windows)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./${{ steps.build.outputs.filename_windows }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,51 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnType": false,
+  "files.eol": "\n",
+  "go.useLanguageServer": true,
+  "go.buildOnSave": "off",
+  "go.lintOnSave": "workspace",
+  "go.vetOnSave": "workspace",
+  "go.lintTool": "golint",
+  "go.buildFlags": [],
+  "go.lintFlags": [],
+  "go.vetFlags": [],
+  "go.toolsEnvVars": {
+    "GO111MODULE": "on"
+  },
+  "go.useCodeSnippetsOnFunctionSuggest": false,
+  "[go]": {
+    "editor.defaultFormatter": "golang.go"
+  },
+  "[shellscript]": {
+    "editor.defaultFormatter": "foxundermoon.shell-format"
+  },
+  "[dockerfile]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "yaml.customTags": [
+    "!And",
+    "!If",
+    "!Not",
+    "!Equals",
+    "!Or",
+    "!FindInMap sequence",
+    "!Base64",
+    "!Cidr",
+    "!Ref",
+    "!Sub",
+    "!GetAtt",
+    "!GetAZs",
+    "!ImportValue",
+    "!Select",
+    "!Select sequence",
+    "!Split",
+    "!Join sequence"
+  ],
+  "yaml.format.enable": true,
+  "dotnetAcquisitionExtension.enableTelemetry": false,
+  "[yaml]": {
+    "prettier.singleQuote": true
+  }
+}
