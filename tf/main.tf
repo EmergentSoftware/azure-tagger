@@ -198,11 +198,11 @@ resource "azurerm_linux_function_app" "azure_tagger" {
     runtime_version          = "~1"
     unauthenticated_action   = "Return401"
     active_directory_v2 {
-      allowed_applications = [data.azuread_service_principal.eventgrid.client_id]
-      allowed_audiences    = [format("api://%s", azuread_application.appreg_azure_tagger.client_id)]
-      allowed_groups       = []
-      allowed_identities   = []
-      client_id            = azuread_application.appreg_azure_tagger.client_id
+      allowed_applications            = [data.azuread_service_principal.eventgrid.client_id]
+      allowed_audiences               = [format("api://%s", azuread_application.appreg_azure_tagger.client_id)]
+      allowed_groups                  = []
+      allowed_identities              = []
+      client_id                       = azuread_application.appreg_azure_tagger.client_id
       jwt_allowed_client_applications = []
       jwt_allowed_groups              = []
       login_parameters                = {}
@@ -233,7 +233,7 @@ resource "azurerm_linux_function_app" "azure_tagger" {
     format("%sUserName", var.tag_prefix)     = var.tag_creator_name
     format("%sCreationDate", var.tag_prefix) = local.current_datetime
     "Workload Type"                          = "Function App"
-    "deployment" = "automated"
+    "deployment"                             = "automated"
   }
   lifecycle {
     prevent_destroy = false
@@ -300,6 +300,13 @@ resource "azuread_service_principal" "azure_tagger" {
     hide                  = true
   }
   timeouts {}
+}
+
+# Assign Microsoft Graph API permissions (Directory.Read.All) to azure_tagger UAMI
+resource "azuread_app_role_assignment" "graph_directory_read_all" {
+  principal_object_id = azurerm_user_assigned_identity.azure_tagger.principal_id
+  app_role_id         = data.azuread_service_principal.microsoft_graph.app_role_ids["Directory.Read.All"]
+  resource_object_id  = data.azuread_service_principal.microsoft_graph.object_id
 }
 
 # Event Grid System Topic where events from Azure Subscription are published

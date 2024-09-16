@@ -12,7 +12,7 @@ import (
 )
 
 // Function to tag the resource with Owner and Date tags
-func tagResource(event Event) error {
+func tagResource(event Event, logger *Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(5)*time.Minute)
 	defer cancel()
 	AzureTagerPrefix := os.Getenv("AZURE_TAGGER_PREFIX")
@@ -23,30 +23,44 @@ func tagResource(event Event) error {
 	// it's picked up from env vars automatically
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		ErrorLogger.Printf("failed to obtain a credential: %v", err)
+		logger.Error.Printf("failed to obtain a credential: %v", err)
 		return fmt.Errorf("failed to obtain a credential: %w", err)
 	}
 
-	client, err := armresources.NewTagsClient(os.Getenv("AZURE_SUBSCRIPTION_ID"), cred, nil)
+	// client, err := armresources.NewTagsClient(os.Getenv("AZURE_SUBSCRIPTION_ID"), cred, nil)
+	// use event.Data.SubscriptionId from the request, to allow multi-subscription events
+	client, err := armresources.NewTagsClient(event.Data.SubscriptionId, cred, nil)
 	if err != nil {
-		ErrorLogger.Printf("failed to create resources client: %v", err)
+		logger.Error.Printf("failed to create resources client: %v", err)
 		return fmt.Errorf("failed to create resources client: %w", err)
 	}
 
-	dateTag := time.Now().UTC().Format(time.RFC3339)
-
 	tags := map[string]*string{
-		fmt.Sprintf("%sEmail", AzureTagerPrefix):        to.Ptr(event.Data.Claims.Email),
-		fmt.Sprintf("%sUserName", AzureTagerPrefix):     to.Ptr(event.Data.Claims.Name),
-		fmt.Sprintf("%sCreationDate", AzureTagerPrefix): to.Ptr(dateTag),
+		fmt.Sprintf("%sCreationDate", AzureTagerPrefix): to.Ptr(event.EventTime),
 	}
+	if event.Data.Claims.Email != "" {
+		tags[fmt.Sprintf("%sEmail", AzureTagerPrefix)] = to.Ptr(event.Data.Claims.Email)
+	} else if event.Data.Claims.ClaimsName != "" {
+		tags[fmt.Sprintf("%sEmail", AzureTagerPrefix)] = to.Ptr(event.Data.Claims.ClaimsName)
+	}
+	if event.Data.Claims.Name != "" {
+		tags[fmt.Sprintf("%sUserName", AzureTagerPrefix)] = to.Ptr(event.Data.Claims.Name)
+	} else {
+		spName, err := getServicePrincipalNameFromId(cred, event, logger)
+		if err == nil {
+			tags[fmt.Sprintf("%sUserName", AzureTagerPrefix)] = spName
+		} else {
+			tags[fmt.Sprintf("%sUserName", AzureTagerPrefix)] = to.Ptr(event.Data.Claims.Appid)
+		}
+	}
+
 	tagsToSet := make(map[string]*string)
-	tagsToSet, err = getTagsToSet(client, &event, tags)
+	tagsToSet, err = getTagsToSet(client, &event, tags, logger)
 	if err != nil {
 		return err
 	}
 	if len(tagsToSet) == 0 {
-		InfoLogger.Printf("All specified tags already exist. No update needed.")
+		logger.Info.Printf("All specified tags already exist. No update needed.")
 		return nil
 	}
 	response, err := client.CreateOrUpdateAtScope(
@@ -60,10 +74,10 @@ func tagResource(event Event) error {
 		nil,
 	)
 	if err != nil {
-		ErrorLogger.Printf("failed to update resource tags: %v", err)
+		logger.Error.Printf("failed to update resource tags: %v", err)
 		return fmt.Errorf("failed to update resource tags: %w", err)
 	}
-	InfoLogger.Println("created tags:", convertMap(response.Properties.Tags))
+	logger.Info.Println("created tags:", convertMap(response.Properties.Tags))
 
 	return nil
 }
