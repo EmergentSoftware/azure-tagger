@@ -1,0 +1,7 @@
+az_tenant_id="0b79ac7b-0cc7-4d9f-a549-3b8cc894ac9b"
+az_subscription_id="fb5048f4-e435-4bc7-aad8-91382889db7d"
+tag_creator_name="Josh Dinndorf"
+azure_tagger_function_name="acme-func-azure-tagger-qwdi"
+tagger_storage_account="acmestazuretaggerqwdi"
+resource_group="acme-rg-azure-tagger-qwdi"
+container_name="acme-function-releases"

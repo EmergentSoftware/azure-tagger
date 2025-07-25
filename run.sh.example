@@ -1,0 +1,22 @@
+#!/bin/bash
+export az_tenant_id="0b79ac7b-0cc7-4d9f-a549-3b8cc894ac9b"
+export az_subscription_id="fb5048f4-e435-4bc7-aad8-91382889db7d"
+az login --tenant $az_tenant_id --use-device-code
+az account set --subscription $az_subscription_id
+
+
+cd tf
+terraform init
+
+terraform plan -var-file=local.tfvars
+terraform apply -var-file=local.tfvars
+
+sudo -s
+cd /scripts
+chmod +x build.sh
+sh upload.sh
+chmod +x upload.sh
+sh upload.sh
+
+
+chmod +x vars.sh

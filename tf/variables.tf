@@ -1,8 +1,4 @@
 
-variable "azure_subscription_id" {
-  type = string
-}
-
 # Get tenant and subscription(Azure formatted) data
 data "azurerm_subscription" "primary" {}
 
@@ -27,27 +23,11 @@ data "azuread_service_principal" "microsoft_graph" {
 }
 
 variable "location" {
-  default = "Central US"
+  default = "North Central US"
 }
 
-variable "resource_group" {
-  default = "rg-azure-tagger"
-}
-
-variable "log_analytics_workspace_name" {
-  default = "azure-tagger-law"
-}
-
-variable "application_insights_name" {
-  default = "azure-tagger-appinsights"
-}
-
-variable "tagger_storage_account" {
-  default = "azuretaggerstorage"
-}
-
-variable "azure_tagger_function_name" {
-  default = "azure-tagger-function"
+variable "client_name_prefix" {
+  default = "acme"
 }
 
 # unique id
@@ -56,19 +36,18 @@ variable "appreg_azure_tagger_uuid" {
 }
 
 variable "tag_prefix" {
-  default = "AzTagger"
+  default = ""
 }
 
 variable "tag_creator_name" {
-  default = "AzureTaggerTerraform"
+  default = "Josh Dinndorf"
 }
 
-locals {
-  current_datetime = timestamp()
-  # azuread_application must have current user as an owners to authenticate
-  owners = [
-    data.azurerm_client_config.current.object_id,
-    # data.azuread_group.admins.object_id,
-    # [for role in data.azuread_directory_roles.global_admin.roles : role.object_id if role.display_name == "Global Administrator"]
-  ]
+
+variable "az_tenant_id" {
+  type = string
+}
+
+variable "az_subscription_id" {
+  type = string
 }

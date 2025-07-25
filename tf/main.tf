@@ -1,20 +1,40 @@
-provider "azurerm" {
-  subscription_id = var.azure_subscription_id
-  features {}
+
+locals {
+  current_datetime = timestamp()
+  azure_region     = "northcentralus"
+  tags = {
+    Environment  = "Live",
+    Application  = "Azure Tagger",
+    CreatedBy    = var.tag_creator_name,
+    ManagedBy    = "Azure Team",
+    CreationDate = local.current_datetime
+    deployment   = "terraform",
+  }
+
+  owners = [
+    data.azurerm_client_config.current.object_id,
+    # data.azuread_group.admins.object_id,
+    # [for role in data.azuread_directory_roles.global_admin.roles : role.object_id if role.display_name == "Global Administrator"]
+  ]
+}
+
+# Define the naming convention for resources
+module "naming" {
+  source = "Azure/naming/azurerm"
+  prefix = ["acme"]
+  suffix = [
+    "azure",
+    "tagger",
+  ]
 }
 
 # Resource Group
 resource "azurerm_resource_group" "azure_tagger" {
-  name     = var.resource_group
+  name     = module.naming.resource_group.name_unique
   location = var.location
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Resource Group"
-    "deployment"                             = "automated"
-  }
+  tags     = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
@@ -22,19 +42,14 @@ resource "azurerm_resource_group" "azure_tagger" {
 }
 
 resource "azurerm_log_analytics_workspace" "azure_tagger_law" {
-  name                = var.log_analytics_workspace_name
+  name                = module.naming.log_analytics_workspace.name_unique
   resource_group_name = azurerm_resource_group.azure_tagger.name
   location            = azurerm_resource_group.azure_tagger.location
   sku                 = "PerGB2018"
   retention_in_days   = 30
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Log Analytics Workspace"
-    "deployment"                             = "automated"
-  }
+  tags                = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
@@ -42,39 +57,27 @@ resource "azurerm_log_analytics_workspace" "azure_tagger_law" {
 }
 
 resource "azurerm_application_insights" "azure_tagger_ai" {
-  name                = var.application_insights_name
+  name                = module.naming.application_insights.name_unique
   resource_group_name = azurerm_resource_group.azure_tagger.name
   location            = azurerm_resource_group.azure_tagger.location
   workspace_id        = azurerm_log_analytics_workspace.azure_tagger_law.id
   application_type    = "web"
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Application Insights"
-    "deployment"                             = "automated"
-  }
+  tags                = local.tags
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
-
   }
 }
 
 # User Assigned Managed Identity
 resource "azurerm_user_assigned_identity" "azure_tagger" {
-  name                = "azure-tagger-uami"
+  name                = module.naming.user_assigned_identity.name_unique
   location            = azurerm_resource_group.azure_tagger.location
   resource_group_name = azurerm_resource_group.azure_tagger.name
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Managed Identity"
-    "deployment"                             = "automated"
-  }
+  tags                = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
@@ -86,9 +89,6 @@ resource "azurerm_role_assignment" "uami_resource_tagging" {
   principal_id         = azurerm_user_assigned_identity.azure_tagger.principal_id
   scope                = data.azurerm_subscription.primary.id
   role_definition_name = "Tag Contributor"
-  lifecycle {
-    prevent_destroy = false
-  }
 }
 
 # Granting the UAMI permissions to read resources in subscription (to read tags)
@@ -96,26 +96,18 @@ resource "azurerm_role_assignment" "uami_resource_reading" {
   principal_id         = azurerm_user_assigned_identity.azure_tagger.principal_id
   scope                = data.azurerm_subscription.primary.id
   role_definition_name = "Reader"
-  lifecycle {
-    prevent_destroy = false
-  }
 }
 
 # Storage Account for Function App
 resource "azurerm_storage_account" "azure_tagger" {
-  name                     = var.tagger_storage_account
+  name                     = module.naming.storage_account.name_unique
   resource_group_name      = azurerm_resource_group.azure_tagger.name
   location                 = azurerm_resource_group.azure_tagger.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Storage Account"
-    "deployment"                             = "automated"
-  }
+  tags                     = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
@@ -124,12 +116,9 @@ resource "azurerm_storage_account" "azure_tagger" {
 
 # Storage Container for the Function App
 resource "azurerm_storage_container" "azure_tagger" {
-  name                  = "function-releases"
+  name                  = "acme-function-releases"
   storage_account_name  = azurerm_storage_account.azure_tagger.name
   container_access_type = "private"
-  lifecycle {
-    prevent_destroy = false
-  }
 }
 
 # Assign Contributor role to Function Apps' assigned managed identity
@@ -141,19 +130,14 @@ resource "azurerm_role_assignment" "rbac_storage_blob_contributor_azure_tagger" 
 
 # Application Service Plan
 resource "azurerm_service_plan" "azure_tagger" {
-  name                = "azure-tagger-service-plan"
+  name                = module.naming.app_service_plan.name_unique
   location            = azurerm_resource_group.azure_tagger.location
   resource_group_name = azurerm_resource_group.azure_tagger.name
   os_type             = "Linux"
   sku_name            = "Y1"
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Service Plan"
-    "deployment"                             = "automated"
-  }
+  tags                = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
@@ -162,7 +146,7 @@ resource "azurerm_service_plan" "azure_tagger" {
 
 # Function App
 resource "azurerm_linux_function_app" "azure_tagger" {
-  name                 = var.azure_tagger_function_name
+  name                 = module.naming.function_app.name_unique
   location             = azurerm_resource_group.azure_tagger.location
   resource_group_name  = azurerm_resource_group.azure_tagger.name
   service_plan_id      = azurerm_service_plan.azure_tagger.id
@@ -180,7 +164,7 @@ resource "azurerm_linux_function_app" "azure_tagger" {
     FUNCTIONS_WORKER_RUNTIME = "custom"
     // AZURE_CLIENT_ID is picked up by azidentity.NewDefaultAzureCredential(nil)
     AZURE_CLIENT_ID       = azurerm_user_assigned_identity.azure_tagger.client_id
-    AZURE_SUBSCRIPTION_ID = var.azure_subscription_id
+    AZURE_SUBSCRIPTION_ID = var.az_subscription_id
     AZURE_TAGGER_PREFIX   = var.tag_prefix
     # WEBSITE_CONTENTSHARE                     = azurerm_storage_share.azure_tagger.name
     WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID = azurerm_user_assigned_identity.azure_tagger.id
@@ -229,30 +213,19 @@ resource "azurerm_linux_function_app" "azure_tagger" {
     }
     scm_minimum_tls_version = "1.2"
   }
-  tags = {
-    format("%sUserName", var.tag_prefix)     = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Function App"
-    "deployment"                             = "automated"
-  }
+  tags = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       app_settings["WEBSITE_RUN_FROM_PACKAGE"],
-      tags,
-      # tags[format("%sCreationDate",var.tag_prefix],
-      # tags[format("%sEmail",var.tag_prefix)],
-      # tags[format("%sUserName",var.tag_prefix)],
-      # tags["hidden-link: /app-insights-conn-string"],
-      # tags["hidden-link: /app-insights-instrumentation-key"],
-      # tags["hidden-link: /app-insights-resource-id"],
+      tags
     ]
   }
 }
 
 # App Registration
 resource "azuread_application" "appreg_azure_tagger" {
-  display_name     = "appreg_azure_tagger"
+  display_name     = "acme_appreg_azure_tagger"
   sign_in_audience = "AzureADMyOrg"
   owners           = local.owners
 
@@ -311,19 +284,15 @@ resource "azuread_app_role_assignment" "graph_directory_read_all" {
 
 # Event Grid System Topic where events from Azure Subscription are published
 resource "azurerm_eventgrid_system_topic" "azure_tagger" {
-  name                   = "azure-tagger-topic"
+  # name                   = "azure-tagger-topic"
+  name                   = module.naming.eventgrid_topic.name_unique
   resource_group_name    = azurerm_resource_group.azure_tagger.name
   location               = "Global"
   source_arm_resource_id = data.azurerm_subscription.primary.id
   topic_type             = "Microsoft.Resources.Subscriptions"
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Event Grid Topic"
-    "deployment"                             = "automated"
-  }
+  tags                   = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]
@@ -332,11 +301,12 @@ resource "azurerm_eventgrid_system_topic" "azure_tagger" {
 
 # Event Grid Subscription to trigger the Function App
 resource "azurerm_eventgrid_event_subscription" "azure_tagger" {
-  name  = "azure-tagger-event-subscription"
+  # name  = "azure-tagger-event-subscription"
+  name  = module.naming.eventgrid_event_subscription.name_unique
   scope = data.azurerm_subscription.primary.id
   webhook_endpoint {
     # url                               = format("https://%s/api/SendGridEvents", azurerm_linux_function_app.azure_tagger.default_hostname)
-    url                               = format("https://%s.azurewebsites.net/api/SendGridEvents", var.azure_tagger_function_name)
+    url                               = format("https://%s.azurewebsites.net/api/SendGridEvents", azurerm_linux_function_app.azure_tagger.name)
     max_events_per_batch              = 1
     preferred_batch_size_in_kilobytes = 64
     active_directory_tenant_id        = data.azurerm_subscription.primary.tenant_id
@@ -348,23 +318,15 @@ resource "azurerm_eventgrid_event_subscription" "azure_tagger" {
     event_time_to_live    = 1440
     max_delivery_attempts = 30
   }
-  lifecycle {
-    prevent_destroy = false
-  }
 }
 
 resource "azurerm_monitor_action_group" "action_group" {
   name                = "Application Insights Smart Detection"
   resource_group_name = azurerm_resource_group.azure_tagger.name
   short_name          = "SmartDetect"
-  tags = {
-    format("%sCreator", var.tag_prefix)      = var.tag_creator_name
-    format("%sCreationDate", var.tag_prefix) = local.current_datetime
-    "Workload Type"                          = "Event Grid Topic"
-    "deployment"                             = "automated"
-  }
+  tags                = local.tags
+
   lifecycle {
-    prevent_destroy = false
     ignore_changes = [
       tags
     ]

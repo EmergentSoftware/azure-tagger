@@ -193,3 +193,5 @@ run.ps1
 run.bash
 *.zip
 *.tar.gz
+azure-tagger
+tmp/build/

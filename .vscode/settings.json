@@ -47,5 +47,8 @@
   "dotnetAcquisitionExtension.enableTelemetry": false,
   "[yaml]": {
     "prettier.singleQuote": true
+  },
+  "[terraform]": {
+    "editor.defaultFormatter": "hashicorp.terraform"
   }
 }
